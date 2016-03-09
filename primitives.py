@@ -115,6 +115,45 @@ def hid_layer():
     print(helper.get_output(l_rec).eval({l_inp.input_var: x_in, hid_inp.input_var: hid_in}))
 
 
+def vanilla_rnn():
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units = 5
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = DenseRecurrentCell(cell_inp, n_units)['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec).eval({l_inp.input_var: x_in}))
+
+
+def vanilla_lstm():
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units = 5
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = LSTMCell(cell_inp, n_units)['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec).eval({l_inp.input_var: x_in}))
+
+
+def vanilla_gru():
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units = 5
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = GRUCell(cell_inp, n_units)['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec).eval({l_inp.input_var: x_in}))
+
+
 def main():
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('proc_name')
