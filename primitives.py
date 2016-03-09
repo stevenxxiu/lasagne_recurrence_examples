@@ -5,6 +5,7 @@ sys.path.insert(0, '../lasagne')
 
 import numpy as np
 import theano
+from lasagne import init
 from lasagne.layers import (
     CellLayer, ConcatLayer, CustomRecurrentCell, CustomRecurrentLayer, DenseLayer, DenseRecurrentCell, Gate, GRUCell,
     GRULayer, IdentityLayer, InputLayer, Layer, LSTMCell, LSTMLayer, RecurrentContainerLayer, RecurrentLayer,
@@ -71,6 +72,47 @@ def seq_0_to_1():
 
     x_in = np.random.random((n_batch, n_features)).astype('float32')
     print(helper.get_output(l_rec).eval({hid_inp.input_var: x_in}))
+
+
+def hid_fixed():
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units = 5
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = DenseRecurrentCell(cell_inp, n_units, hid_init=np.ones((1, n_units)))['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec).eval({l_inp.input_var: x_in}))
+
+
+def hid_learnt():
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units = 5
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = DenseRecurrentCell(cell_inp, n_units, hid_init=init.Constant(0.))['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec).eval({l_inp.input_var: x_in}))
+
+
+def hid_layer():
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units = 5
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    hid_inp = InputLayer((n_batch, n_units))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = DenseRecurrentCell(cell_inp, n_units, hid_init=hid_inp)['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    hid_in = np.random.random((n_batch, n_units)).astype('float32')
+    print(helper.get_output(l_rec).eval({l_inp.input_var: x_in, hid_inp.input_var: hid_in}))
 
 
 def main():
