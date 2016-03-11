@@ -3,10 +3,13 @@ import argparse
 import sys
 sys.path.insert(0, '../lasagne')
 
-import numpy as np
 import theano
+import theano.tensor as T
 from lasagne import init
+from lasagne.init import *
 from lasagne.layers import *
+from lasagne.nonlinearities import *
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 
 def seq_1_to_1():
@@ -193,6 +196,48 @@ def stack_lstm_gru_step_input():
 
     x_in = np.random.random((n_batch, n_units_1)).astype('float32')
     print(helper.get_output(l_rec).eval({cell_hid_inp.input_var: x_in}))
+
+
+def rnn_dropout_value():
+    class Bernoulli(Initializer):
+        def __init__(self, p=0.5):
+            self._srng = RandomStreams(get_rng().randint(1, 2147462579))
+            self.p = p
+
+        def sample(self, shape_):
+            retain_prob = 1 - self.p
+            return self._srng.binomial(shape_, p=retain_prob, dtype=theano.config.floatX)
+
+    class RNNDropoutValueCell(CellLayer):
+        def __init__(self, incoming, n_units_, **kwargs):
+            super().__init__({'input': incoming}, {'output': init.Constant(0.)}, **kwargs)
+            self.n_units = n_units_
+            n_inputs = np.prod(incoming.output_shape[1:])
+            self.dropout_init = Bernoulli(0.5)
+            self.dropout = self.add_param(self.dropout_init, (incoming.output_shape[0], n_units_), trainable=False)
+            self.W_in_to_hid = self.add_param(init.Normal(0.1), (n_inputs, n_units_), name='W_in_to_hid')
+            self.W_hid_to_hid = self.add_param(init.Normal(0.1), (n_units_, n_units_), name='W_hid_to_hid')
+
+        def get_output_shape_for(self, input_shapes):
+            return {'output': (input_shapes['input'][0], self.n_units)}
+
+        def get_output_for(self, inputs, precompute_input=False, deterministic=False, **kwargs):
+            input_, hid_previous = inputs['input'], inputs['output']
+            output = tanh(T.dot(input_, self.W_in_to_hid) + T.dot(hid_previous, self.W_hid_to_hid))
+            if not deterministic:
+                output = output / (1 - self.dropout_init.p) * self.dropout
+            return {'output': output}
+
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units = 5
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = RNNDropoutValueCell(cell_inp, n_units)['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec, deterministic=False).eval({l_inp.input_var: x_in}))
 
 
 def main():
