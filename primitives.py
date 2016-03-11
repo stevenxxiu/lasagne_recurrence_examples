@@ -6,11 +6,7 @@ sys.path.insert(0, '../lasagne')
 import numpy as np
 import theano
 from lasagne import init
-from lasagne.layers import (
-    CellLayer, ConcatLayer, CustomRecurrentCell, CustomRecurrentLayer, DenseLayer, DenseRecurrentCell, Gate, GRUCell,
-    GRULayer, IdentityLayer, InputLayer, Layer, LSTMCell, LSTMLayer, RecurrentContainerLayer, RecurrentLayer,
-    ReshapeLayer, helper
-)
+from lasagne.layers import *
 
 
 def seq_1_to_1():
@@ -151,6 +147,23 @@ def vanilla_gru():
     l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
 
     x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec).eval({l_inp.input_var: x_in}))
+
+
+def convolutional_rnn():
+    n_batch, seq_len, n_channels, width, height = 2, 3, 4, 5, 6
+    n_out_filters = 7
+    filter_shape = (3, 3)
+
+    l_inp = InputLayer((n_batch, seq_len, n_channels, width, height))
+    cell_inp = InputLayer((None, n_channels, width, height))
+    cell_in_to_hid = Conv2DLayer(cell_inp, n_out_filters, filter_shape, pad='same')
+    cell_hid_inp = InputLayer((None, n_out_filters, width, height))
+    cell_hid_to_hid = Conv2DLayer(cell_hid_inp, n_out_filters, filter_shape, pad='same')
+    cell = CustomRecurrentCell(cell_inp, cell_in_to_hid, cell_hid_to_hid)['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_channels, width, height)).astype('float32')
     print(helper.get_output(l_rec).eval({l_inp.input_var: x_in}))
 
 
