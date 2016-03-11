@@ -80,7 +80,7 @@ def hid_fixed():
 
     l_inp = InputLayer((n_batch, seq_len, n_features))
     cell_inp = InputLayer((n_batch, n_features))
-    cell = DenseRecurrentCell(cell_inp, n_units, hid_init=np.ones((1, n_units)))['output']
+    cell = DenseRecurrentCell(cell_inp, n_units, hid_init=init.Constant(0.), inits_fixed={'output'})['output']
     l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
 
     x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
