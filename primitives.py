@@ -167,6 +167,34 @@ def convolutional_rnn():
     print(helper.get_output(l_rec).eval({l_inp.input_var: x_in}))
 
 
+def stack_lstm_gru():
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units_1, n_units_2 = 5, 6
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = LSTMCell(cell_inp, n_units_1)['output']
+    cell = GRUCell(cell, n_units_2)['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec).eval({l_inp.input_var: x_in}))
+
+
+def stack_lstm_gru_step_input():
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units_1, n_units_2 = 5, n_features
+
+    cell_inp = InputLayer((n_batch, n_features))
+    cell_hid_inp = InputLayer((n_batch, n_units_1))
+    cell = LSTMCell(cell_inp, n_units_1, hid_init=cell_hid_inp)['output']
+    cell = GRUCell(cell, n_units_2)['output']
+    l_rec = RecurrentContainerLayer({}, cell, {cell_inp: cell}, n_steps=seq_len)
+
+    x_in = np.random.random((n_batch, n_units_1)).astype('float32')
+    print(helper.get_output(l_rec).eval({cell_hid_inp.input_var: x_in}))
+
+
 def main():
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('proc_name')
