@@ -245,102 +245,6 @@ def rnn_dropout_value():
 
 def lstm_dropout_weight():
     class LSTMCell(CellLayer):
-        r"""
-        lasagne.layers.recurrent.LSTMLayer(incoming, num_units,
-        ingate=lasagne.layers.Gate(), forgetgate=lasagne.layers.Gate(),
-        cell=lasagne.layers.Gate(
-        W_cell=None, nonlinearity=lasagne.nonlinearities.tanh),
-        outgate=lasagne.layers.Gate(),
-        nonlinearity=lasagne.nonlinearities.tanh,
-        hid_init=lasagne.init.Constant(0.),
-        hid_init=lasagne.init.Constant(0.), backwards=False, learn_init=False,
-        peepholes=True, gradient_steps=-1, grad_clipping=0, unroll_scan=False,
-        precompute_input=True, mask_input=None, only_return_final=False, **kwargs)
-
-        A long short-term memory (LSTM) layer.
-
-        Includes optional "peephole connections" and a forget gate.  Based on the
-        definition in [1]_, which is the current common definition.  The output is
-        computed by
-
-        .. math ::
-
-            i_t &= \sigma_i(x_t W_{xi} + h_{t-1} W_{hi}
-                   + w_{ci} \odot c_{t-1} + b_i)\\
-            f_t &= \sigma_f(x_t W_{xf} + h_{t-1} W_{hf}
-                   + w_{cf} \odot c_{t-1} + b_f)\\
-            c_t &= f_t \odot c_{t - 1}
-                   + i_t \odot \sigma_c(x_t W_{xc} + h_{t-1} W_{hc} + b_c)\\
-            o_t &= \sigma_o(x_t W_{xo} + h_{t-1} W_{ho} + w_{co} \odot c_t + b_o)\\
-            h_t &= o_t \odot \sigma_h(c_t)
-
-        Parameters
-        ----------
-        incoming : a :class:`lasagne.layers.Layer` instance or a tuple
-            The layer feeding into this layer, or the expected input shape.
-        num_units : int
-            Number of hidden/cell units in the layer.
-        ingate : Gate
-            Parameters for the input gate (:math:`i_t`): :math:`W_{xi}`,
-            :math:`W_{hi}`, :math:`w_{ci}`, :math:`b_i`, and :math:`\sigma_i`.
-        forgetgate : Gate
-            Parameters for the forget gate (:math:`f_t`): :math:`W_{xf}`,
-            :math:`W_{hf}`, :math:`w_{cf}`, :math:`b_f`, and :math:`\sigma_f`.
-        cell : Gate
-            Parameters for the cell computation (:math:`c_t`): :math:`W_{xc}`,
-            :math:`W_{hc}`, :math:`b_c`, and :math:`\sigma_c`.
-        outgate : Gate
-            Parameters for the output gate (:math:`o_t`): :math:`W_{xo}`,
-            :math:`W_{ho}`, :math:`w_{co}`, :math:`b_o`, and :math:`\sigma_o`.
-        nonlinearity : callable or None
-            The nonlinearity that is applied to the output (:math:`\sigma_h`). If
-            None is provided, no nonlinearity will be applied.
-        cell_init : callable, np.ndarray, theano.shared or :class:`Layer`
-            Initializer for initial cell state (:math:`c_0`).
-        hid_init : callable, np.ndarray, theano.shared or :class:`Layer`
-            Initializer for initial hidden state (:math:`h_0`).
-        backwards : bool
-            If True, process the sequence backwards and then reverse the
-            output again such that the output from the layer is always
-            from :math:`x_1` to :math:`x_n`.
-        learn_init : bool
-            If True, initial hidden values are learned.
-        peepholes : bool
-            If True, the LSTM uses peephole connections.
-            When False, `ingate.W_cell`, `forgetgate.W_cell` and
-            `outgate.W_cell` are ignored.
-        gradient_steps : int
-            Number of timesteps to include in the backpropagated gradient.
-            If -1, backpropagate through the entire sequence.
-        grad_clipping : float
-            If nonzero, the gradient messages are clipped to the given value during
-            the backward pass.  See [1]_ (p. 6) for further explanation.
-        unroll_scan : bool
-            If True the recursion is unrolled instead of using scan. For some
-            graphs this gives a significant speed up but it might also consume
-            more memory. When `unroll_scan` is True, backpropagation always
-            includes the full sequence, so `gradient_steps` must be set to -1 and
-            the input sequence length must be known at compile time (i.e., cannot
-            be given as None).
-        precompute_input : bool
-            If True, precompute input_to_hid before iterating through
-            the sequence. This can result in a speedup at the expense of
-            an increase in memory usage.
-        mask_input : :class:`lasagne.layers.Layer`
-            Layer which allows for a sequence mask to be input, for when sequences
-            are of variable length.  Default `None`, which means no mask will be
-            supplied (i.e. all sequences are of the same length).
-        only_return_final : bool
-            If True, only return the final sequential output (e.g. for tasks where
-            a single target value for the entire sequence is desired).  In this
-            case, Theano makes an optimization which saves memory.
-
-        References
-        ----------
-        .. [1] Graves, Alex: "Generating sequences with recurrent neural networks."
-               arXiv preprint arXiv:1308.0850 (2013).
-        """
-
         def __init__(self, incoming, num_units,
                      ingate=Gate(name='ingate'),
                      forgetgate=Gate(name='forgetgate'),
@@ -437,36 +341,6 @@ def lstm_dropout_weight():
             return inputs
 
         def get_output_for(self, inputs, precompute_input=False, **kwargs):
-            """
-            Compute this layer's output function given a symbolic input variable
-
-            Parameters
-            ----------
-            inputs : list of theano.TensorType
-                `inputs[0]` should always be the symbolic input variable.  When
-                this layer has a mask input (i.e. was instantiated with
-                `mask_input != None`, indicating that the lengths of sequences in
-                each batch vary), `inputs` should have length 2, where `inputs[1]`
-                is the `mask`.  The `mask` should be supplied as a Theano variable
-                denoting whether each time step in each sequence in the batch is
-                part of the sequence or not.  `mask` should be a matrix of shape
-                ``(n_batch, n_time_steps)`` where ``mask[i, j] = 1`` when ``j <=
-                (length of sequence i)`` and ``mask[i, j] = 0`` when ``j > (length
-                of sequence i)``. When the hidden state of this layer is to be
-                pre-filled (i.e. was set to a :class:`Layer` instance) `inputs`
-                should have length at least 2, and `inputs[-1]` is the hidden state
-                to prefill with. When the cell state of this layer is to be
-                pre-filled (i.e. was set to a :class:`Layer` instance) `inputs`
-                should have length at least 2, and `inputs[-1]` is the hidden state
-                to prefill with. When both the cell state and the hidden state are
-                being pre-filled `inputs[-2]` is the hidden state, while
-                `inputs[-1]` is the cell state.
-
-            Returns
-            -------
-            layer_output : theano.TensorType
-                Symbolic output variable.
-            """
             input, cell_previous, hid_previous = \
                 inputs['input'], inputs['cell'], inputs['output']
 
