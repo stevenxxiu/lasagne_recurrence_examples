@@ -199,22 +199,23 @@ def stack_lstm_gru_step_input():
 
 
 def rnn_dropout_value():
-    class Bernoulli(Initializer):
-        def __init__(self, p=0.5):
-            self._srng = RandomStreams(get_rng().randint(1, 2147462579))
+    class BernoulliDropout(Layer):
+        def __init__(self, incoming, n_units_, p=0.5, **kwargs):
+            super().__init__(incoming, **kwargs)
+            self.n_units = n_units_
             self.p = p
+            self._srng = RandomStreams(get_rng().randint(1, 2147462579))
 
-        def sample(self, shape_):
+        def get_output_for(self, input_, **kwargs):
             retain_prob = 1 - self.p
-            return self._srng.binomial(shape_, p=retain_prob, dtype=theano.config.floatX)
+            return self._srng.binomial((input_.shape[0], self.n_units), p=retain_prob, dtype=theano.config.floatX)
 
     class RNNDropoutValueCell(CellLayer):
-        def __init__(self, incoming, n_units_, **kwargs):
-            super().__init__({'input': incoming}, {'output': init.Constant(0.)}, **kwargs)
+        def __init__(self, incoming, seq_incoming, n_units_, **kwargs):
+            self.dropout = BernoulliDropout(seq_incoming, n_units_)
+            super().__init__({'input': incoming}, {'output': init.Constant(0.), 'dropout': self.dropout}, **kwargs)
             self.n_units = n_units_
             n_inputs = np.prod(incoming.output_shape[1:])
-            self.dropout_init = Bernoulli(0.5)
-            self.dropout = self.add_param(self.dropout_init, (incoming.output_shape[0], n_units_), trainable=False)
             self.W_in_to_hid = self.add_param(init.Normal(0.1), (n_inputs, n_units_), name='W_in_to_hid')
             self.W_hid_to_hid = self.add_param(init.Normal(0.1), (n_units_, n_units_), name='W_hid_to_hid')
 
@@ -222,10 +223,10 @@ def rnn_dropout_value():
             return {'output': (input_shapes['input'][0], self.n_units)}
 
         def get_output_for(self, inputs, precompute_input=False, deterministic=False, **kwargs):
-            input_, hid_previous = inputs['input'], inputs['output']
+            input_, hid_previous, dropout_ = inputs['input'], inputs['output'], inputs['dropout']
             output = tanh(T.dot(input_, self.W_in_to_hid) + T.dot(hid_previous, self.W_hid_to_hid))
             if not deterministic:
-                output = output / (1 - self.dropout_init.p) * self.dropout
+                output = output / (1 - self.dropout.p) * dropout_
             return {'output': output}
 
     n_batch, seq_len, n_features = 2, 3, 4
@@ -233,7 +234,7 @@ def rnn_dropout_value():
 
     l_inp = InputLayer((n_batch, seq_len, n_features))
     cell_inp = InputLayer((n_batch, n_features))
-    cell = RNNDropoutValueCell(cell_inp, n_units)['output']
+    cell = RNNDropoutValueCell(cell_inp, l_inp, n_units)['output']
     l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
 
     x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
