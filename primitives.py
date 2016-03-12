@@ -245,6 +245,11 @@ def rnn_dropout_value():
 
 
 def lstm_dropout_weight():
+    '''
+    References
+    ----------
+    .. [1] Gal, Yarin: "A Theoretically Grounded Application of Dropout in Recurrent Neural Networks"
+    '''
     class LSTMDropoutWeightCell(CellLayer):
         def __init__(
             self, incoming, num_units, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
