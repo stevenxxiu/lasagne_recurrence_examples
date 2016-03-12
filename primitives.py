@@ -214,7 +214,7 @@ def stack_lstm_gru_step_input():
     print(helper.get_output(l_rec).eval({cell_hid_inp.input_var: x_in}))
 
 
-def rnn_dropout_value():
+def rnn_dropout_output():
     class RNNDropoutOutputCell(CellLayer):
         def __init__(self, incoming, seq_incoming, n_units_, **kwargs):
             self.n_units = n_units_
@@ -248,7 +248,7 @@ def rnn_dropout_value():
     print(helper.get_output(l_rec, deterministic=False).eval({l_inp.input_var: x_in}))
 
 
-def lstm_dropout_weight():
+def lstm_dropout_gal():
     '''
     References
     ----------
