@@ -20,11 +20,12 @@ class BernoulliDropout(Layer):
         self.p = p
         self._srng = RandomStreams(get_rng().randint(1, 2147462579))
 
-    def get_output_for(self, input_, **kwargs):
+    def get_output_for(self, input_, deterministic=True, **kwargs):
         retain_prob = 1 - self.p
-        return self._srng.binomial(tuple(
-            x if x != -1 else input_.shape[0] for x in self.shape
-        ), p=retain_prob, dtype=theano.config.floatX)
+        shape = tuple(x if x != -1 else input_.shape[0] for x in self.shape)
+        if deterministic:
+            return T.ones(shape)
+        return self._srng.binomial(shape, p=retain_prob, dtype=theano.config.floatX) / retain_prob
 
 
 def seq_1_to_1():
@@ -253,9 +254,9 @@ def lstm_dropout_weight():
     ----------
     .. [1] Gal, Yarin: "A Theoretically Grounded Application of Dropout in Recurrent Neural Networks"
     '''
-    class LSTMDropoutHiddenCell(CellLayer):
+    class LSTMDropoutGalCell(CellLayer):
         def __init__(
-            self, incoming, seq_incoming, num_units, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
+            self, incoming, seq_incoming, num_units, dropout_p, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
             g_c=Gate(W_cell=None, nonlinearity=tanh, name='cell'), g_o=Gate(name='outgate'),
             nonlinearity=tanh, cell_init=init.Constant(0.), hid_init=init.Constant(0.), peepholes=True,
             grad_clipping=0, **kwargs
@@ -265,7 +266,7 @@ def lstm_dropout_weight():
             self.grad_clipping = grad_clipping
             self.nonlinearity = identity if nonlinearity is None else nonlinearity
             num_inputs = np.prod(incoming.output_shape[1:])
-            self.dropout = BernoulliDropout(seq_incoming, (4, -1, num_units))
+            self.dropout = BernoulliDropout(seq_incoming, (4, -1, num_units), p=dropout_p)
             super().__init__({
                 'x': incoming, 'xi': incoming, 'xf': incoming, 'xc': incoming, 'xo': incoming,
             }, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs)
@@ -328,7 +329,7 @@ def lstm_dropout_weight():
 
     l_inp = InputLayer((n_batch, seq_len, n_features))
     cell_inp = InputLayer((n_batch, n_features))
-    cell = LSTMDropoutHiddenCell(cell_inp, l_inp, n_units)['output']
+    cell = LSTMDropoutGalCell(cell_inp, l_inp, n_units, dropout_p=0.5)['output']
     l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
 
     x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
