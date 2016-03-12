@@ -229,11 +229,10 @@ def rnn_dropout_output():
         def get_output_shape_for(self, input_shapes):
             return {'output': (input_shapes['input'][0], self.n_units)}
 
-        def get_output_for(self, inputs, precompute_input=False, deterministic=False, **kwargs):
+        def get_output_for(self, inputs, precompute_input=False, **kwargs):
             input_, hid_previous, dropout_ = inputs['input'], inputs['output'], inputs['dropout']
             output = tanh(T.dot(input_, self.W_in_to_hid) + T.dot(hid_previous, self.W_hid_to_hid))
-            if not deterministic:
-                output = output / (1 - self.dropout.p) * dropout_
+            output *= dropout_
             return {'output': output}
 
     n_batch, seq_len, n_features = 2, 3, 4
