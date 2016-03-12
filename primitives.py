@@ -247,6 +247,90 @@ def rnn_dropout_output():
     print(helper.get_output(l_rec, deterministic=False).eval({l_inp.input_var: x_in}))
 
 
+def lstm_dropout_mcls():
+    class LSTMDropoutMCLSCell(CellLayer):
+        def __init__(
+            self, incoming, seq_incoming, num_units, dropout_p, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
+            g_c=Gate(W_cell=None, nonlinearity=tanh, name='cell'), g_o=Gate(name='outgate'),
+            nonlinearity=tanh, cell_init=Constant(0.), hid_init=Constant(0.), peepholes=True,
+            grad_clipping=0, **kwargs
+        ):
+            self.num_units = num_units
+            self.peepholes = peepholes
+            self.grad_clipping = grad_clipping
+            self.nonlinearity = identity if nonlinearity is None else nonlinearity
+            num_inputs = np.prod(incoming.output_shape[1:])
+            self.dropout = BernoulliDropout(seq_incoming, (-1, num_units), p=dropout_p)
+            super().__init__({
+                'x': incoming, 'xi': incoming, 'xf': incoming, 'xc': incoming, 'xo': incoming,
+            }, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs)
+            self.W_xi, self.W_hi, self.b_i, self.nl_i = g_i.add_params_to(self, num_inputs, num_units)
+            self.W_xf, self.W_hf, self.b_f, self.nl_f = g_f.add_params_to(self, num_inputs, num_units)
+            self.W_xc, self.W_hc, self.b_c, self.nl_c = g_c.add_params_to(self, num_inputs, num_units)
+            self.W_xo, self.W_ho, self.b_o, self.nl_o = g_o.add_params_to(self, num_inputs, num_units)
+            if self.peepholes:
+                self.W_ci = self.add_param(g_i.W_cell, (num_units,), name='W_ci')
+                self.W_cf = self.add_param(g_f.W_cell, (num_units,), name='W_cf')
+                self.W_co = self.add_param(g_o.W_cell, (num_units,), name='W_co')
+
+        def get_output_shape_for(self, input_shapes):
+            return {
+                'cell': (input_shapes['x'][0], self.num_units),
+                'output': (input_shapes['x'][0], self.num_units),
+            }
+
+        def precompute_for(self, inputs, **kwargs):
+            x = inputs['x']
+            if x.ndim > 3:
+                x = T.flatten(x, 3)
+            return {
+                'xi': T.dot(x, self.W_xi) + self.b_i,
+                'xf': T.dot(x, self.W_xf) + self.b_f,
+                'xc': T.dot(x, self.W_xc) + self.b_c,
+                'xo': T.dot(x, self.W_xo) + self.b_o,
+            }
+
+        def get_output_for(self, inputs, precompute_input=False, **kwargs):
+            if not precompute_input:
+                raise NotImplementedError
+            c_tm1, h_tm1, dropout_ = inputs['cell'], inputs['output'], inputs['dropout']
+            i_t = inputs['xi'] + T.dot(h_tm1, self.W_hi)
+            f_t = inputs['xf'] + T.dot(h_tm1, self.W_hf)
+            c_t = inputs['xc'] + T.dot(h_tm1, self.W_hc)
+            o_t = inputs['xo'] + T.dot(h_tm1, self.W_ho)
+            if self.grad_clipping:
+                i_t = theano.gradient.grad_clip(i_t, -self.grad_clipping, self.grad_clipping)
+                f_t = theano.gradient.grad_clip(f_t, -self.grad_clipping, self.grad_clipping)
+                c_t = theano.gradient.grad_clip(c_t, -self.grad_clipping, self.grad_clipping)
+                o_t = theano.gradient.grad_clip(o_t, -self.grad_clipping, self.grad_clipping)
+            if self.peepholes:
+                i_t += c_tm1 * self.W_ci
+                f_t += c_tm1 * self.W_cf
+            i_t = self.nl_i(i_t)
+            f_t = self.nl_f(f_t)
+            c_t = self.nl_c(c_t)
+            c_t = f_t * c_tm1 + i_t * c_t
+            c_t *= dropout_
+            if self.peepholes:
+                o_t += c_t * self.W_co
+            o_t = self.nl_o(o_t)
+            h_t = o_t * self.nonlinearity(c_t)
+            return {'cell': c_t, 'output': h_t}
+
+    lasagne.random.get_rng().seed(1234)
+
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units = 5
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = LSTMDropoutMCLSCell(cell_inp, l_inp, n_units, dropout_p=0.5)['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec, deterministic=False).eval({l_inp.input_var: x_in}))
+
+
 def lstm_dropout_gal():
     '''
     References
