@@ -248,6 +248,11 @@ def rnn_dropout_output():
 
 
 def lstm_dropout_mcls():
+    '''
+    References
+    ----------
+    .. [1] Moon, Taesup; Choi, Heeyoul; Lee Hoshik; Song, Inchul: "RnnDrop: A Novel Dropout for RNNs in ASR"
+    '''
     class LSTMDropoutMCLSCell(CellLayer):
         def __init__(
             self, incoming, seq_incoming, num_units, dropout_p, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
