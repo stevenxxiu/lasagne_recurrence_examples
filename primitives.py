@@ -247,82 +247,71 @@ def rnn_dropout_value():
 def lstm_dropout_weight():
     class LSTMDropoutWeightCell(CellLayer):
         def __init__(
-            self, incoming, num_units, ingate=Gate(name='ingate'), forgetgate=Gate(name='forgetgate'),
-            cell=Gate(W_cell=None, nonlinearity=tanh, name='cell'), outgate=Gate(name='outgate'),
+            self, incoming, num_units, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
+            g_c=Gate(W_cell=None, nonlinearity=tanh, name='cell'), g_o=Gate(name='outgate'),
             nonlinearity=tanh, cell_init=init.Constant(0.), hid_init=init.Constant(0.), peepholes=True,
             grad_clipping=0, **kwargs
         ):
-            super().__init__({'input': incoming}, {'cell': cell_init, 'output': hid_init}, **kwargs)
+            super().__init__({
+                'x': incoming, 'xi': incoming, 'xf': incoming, 'xc': incoming, 'xo': incoming,
+            }, {'cell': cell_init, 'output': hid_init}, **kwargs)
             self.num_units = num_units
             self.peepholes = peepholes
             self.grad_clipping = grad_clipping
             self.nonlinearity = identity if nonlinearity is None else nonlinearity
             num_inputs = np.prod(incoming.output_shape[1:])
-            self.W_in_to_ingate, self.W_hid_to_ingate, self.b_ingate, self.nonlinearity_ingate = \
-                ingate.add_params_to(self, num_inputs, num_units, step=False)
-            self.W_in_to_forgetgate, self.W_hid_to_forgetgate, self.b_forgetgate, self.nonlinearity_forgetgate = \
-                forgetgate.add_params_to(self, num_inputs, num_units, step=False)
-            self.W_in_to_cell, self.W_hid_to_cell, self.b_cell, self.nonlinearity_cell = \
-                cell.add_params_to(self, num_inputs, num_units, step=False)
-            self.W_in_to_outgate, self.W_hid_to_outgate, self.b_outgate, self.nonlinearity_outgate = \
-                outgate.add_params_to(self, num_inputs, num_units, step=False)
+            self.W_xi, self.W_hi, self.b_i, self.nl_i = g_i.add_params_to(self, num_inputs, num_units)
+            self.W_xf, self.W_hf, self.b_f, self.nl_f = g_f.add_params_to(self, num_inputs, num_units)
+            self.W_xc, self.W_hc, self.b_c, self.nl_c = g_c.add_params_to(self, num_inputs, num_units)
+            self.W_xo, self.W_ho, self.b_o, self.nl_o = g_o.add_params_to(self, num_inputs, num_units)
             if self.peepholes:
-                self.W_cell_to_ingate = self.add_param(ingate.W_cell, (num_units,), name='W_cell_to_ingate')
-                self.W_cell_to_forgetgate = self.add_param(forgetgate.W_cell, (num_units,), name='W_cell_to_forgetgate')
-                self.W_cell_to_outgate = self.add_param(outgate.W_cell, (num_units,), name='W_cell_to_outgate')
-            self.W_in_stacked = self.add_param(T.concatenate([
-                self.W_in_to_ingate, self.W_in_to_forgetgate, self.W_in_to_cell, self.W_in_to_outgate
-            ], axis=1), (num_inputs, 4 * num_units), step_only=True, precompute_input=False)
-            self.W_hid_stacked = self.add_param(T.concatenate([
-                self.W_hid_to_ingate, self.W_hid_to_forgetgate, self.W_hid_to_cell, self.W_hid_to_outgate
-            ], axis=1), (num_units, 4 * num_units), step_only=True)
-            self.b_stacked = self.add_param(T.concatenate([
-                self.b_ingate, self.b_forgetgate, self.b_cell, self.b_outgate
-            ], axis=0), (4 * num_units,), step_only=True, precompute_input=False)
+                self.W_ci = self.add_param(g_i.W_cell, (num_units,), name='W_ci')
+                self.W_cf = self.add_param(g_f.W_cell, (num_units,), name='W_cf')
+                self.W_co = self.add_param(g_o.W_cell, (num_units,), name='W_co')
 
         def get_output_shape_for(self, input_shapes):
             return {
-                'cell': (input_shapes['input'][0], self.num_units),
-                'output': (input_shapes['input'][0], self.num_units),
+                'cell': (input_shapes['x'][0], self.num_units),
+                'output': (input_shapes['x'][0], self.num_units),
             }
 
         def precompute_for(self, inputs, **kwargs):
-            input = inputs['input']
-            if input.ndim > 3:
-                input = T.flatten(input, 3)
-            input = T.dot(input, self.W_in_stacked) + self.b_stacked
-            inputs['input'] = input
-            return inputs
+            x = inputs['x']
+            if x.ndim > 3:
+                x = T.flatten(x, 3)
+            return {
+                'x': x,
+                'xi': T.dot(x, self.W_xi) + self.b_i,
+                'xf': T.dot(x, self.W_xf) + self.b_f,
+                'xc': T.dot(x, self.W_xc) + self.b_c,
+                'xo': T.dot(x, self.W_xo) + self.b_o,
+            }
 
         def get_output_for(self, inputs, precompute_input=False, **kwargs):
-            input, cell_previous, hid_previous = inputs['input'], inputs['cell'], inputs['output']
-
-            def slice_w(x, n):
-                return x[:, n * self.num_units:(n + 1) * self.num_units]
-
             if not precompute_input:
-                if input.ndim > 2:
-                    input = T.flatten(input, 2)
-                input = T.dot(input, self.W_in_stacked) + self.b_stacked
-            gates = input + T.dot(hid_previous, self.W_hid_stacked)
+                raise NotImplementedError
+            c_tm1, h_tm1 = inputs['cell'], inputs['output']
+            i_t = inputs['xi'] + T.dot(h_tm1, self.W_hi)
+            f_t = inputs['xf'] + T.dot(h_tm1, self.W_hf)
+            c_t = inputs['xc'] + T.dot(h_tm1, self.W_hc)
+            o_t = inputs['xo'] + T.dot(h_tm1, self.W_ho)
             if self.grad_clipping:
-                gates = theano.gradient.grad_clip(gates, -self.grad_clipping, self.grad_clipping)
-            ingate = slice_w(gates, 0)
-            forgetgate = slice_w(gates, 1)
-            cell_input = slice_w(gates, 2)
-            outgate = slice_w(gates, 3)
+                i_t = theano.gradient.grad_clip(i_t, -self.grad_clipping, self.grad_clipping)
+                f_t = theano.gradient.grad_clip(f_t, -self.grad_clipping, self.grad_clipping)
+                c_t = theano.gradient.grad_clip(c_t, -self.grad_clipping, self.grad_clipping)
+                o_t = theano.gradient.grad_clip(o_t, -self.grad_clipping, self.grad_clipping)
             if self.peepholes:
-                ingate += cell_previous * self.W_cell_to_ingate
-                forgetgate += cell_previous * self.W_cell_to_forgetgate
-            ingate = self.nonlinearity_ingate(ingate)
-            forgetgate = self.nonlinearity_forgetgate(forgetgate)
-            cell_input = self.nonlinearity_cell(cell_input)
-            cell = forgetgate * cell_previous + ingate * cell_input
+                i_t += c_tm1 * self.W_ci
+                f_t += c_tm1 * self.W_cf
+            i_t = self.nl_i(i_t)
+            f_t = self.nl_f(f_t)
+            c_t = self.nl_c(c_t)
+            c_t = f_t * c_tm1 + i_t * c_t
             if self.peepholes:
-                outgate += cell * self.W_cell_to_outgate
-            outgate = self.nonlinearity_outgate(outgate)
-            hid = outgate * self.nonlinearity(cell)
-            return {'cell': cell, 'output': hid}
+                o_t += c_t * self.W_co
+            o_t = self.nl_o(o_t)
+            h_t = o_t * self.nonlinearity(c_t)
+            return {'cell': c_t, 'output': h_t}
 
     lasagne.random.get_rng().seed(1234)
 
