@@ -213,6 +213,8 @@ def rnn_dropout_value():
     class RNNDropoutValueCell(CellLayer):
         def __init__(self, incoming, seq_incoming, n_units_, **kwargs):
             self.dropout = BernoulliDropout(seq_incoming, n_units_)
+            # Passing the dropout layer to incomings directly instead of to inits will not add it to non_seqs,
+            # therefore the dropout masks would change per iteration.
             super().__init__({'input': incoming}, {'output': init.Constant(0.), 'dropout': self.dropout}, **kwargs)
             self.n_units = n_units_
             n_inputs = np.prod(incoming.output_shape[1:])
