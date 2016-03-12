@@ -246,79 +246,39 @@ def rnn_dropout_value():
 
 def lstm_dropout_weight():
     class LSTMDropoutWeightCell(CellLayer):
-        def __init__(self, incoming, num_units,
-                     ingate=Gate(name='ingate'),
-                     forgetgate=Gate(name='forgetgate'),
-                     cell=Gate(W_cell=None, nonlinearity=tanh,
-                               name='cell'),
-                     outgate=Gate(name='outgate'),
-                     nonlinearity=tanh,
-                     cell_init=init.Constant(0.),
-                     hid_init=init.Constant(0.),
-                     peepholes=True,
-                     grad_clipping=0,
-                     **kwargs):
-            super().__init__(
-                {'input': incoming},
-                {'cell': cell_init, 'output': hid_init}, **kwargs)
+        def __init__(
+            self, incoming, num_units, ingate=Gate(name='ingate'), forgetgate=Gate(name='forgetgate'),
+            cell=Gate(W_cell=None, nonlinearity=tanh, name='cell'), outgate=Gate(name='outgate'),
+            nonlinearity=tanh, cell_init=init.Constant(0.), hid_init=init.Constant(0.), peepholes=True,
+            grad_clipping=0, **kwargs
+        ):
+            super().__init__({'input': incoming}, {'cell': cell_init, 'output': hid_init}, **kwargs)
             self.num_units = num_units
             self.peepholes = peepholes
             self.grad_clipping = grad_clipping
-            if nonlinearity is None:
-                self.nonlinearity = identity
-            else:
-                self.nonlinearity = nonlinearity
-
+            self.nonlinearity = identity if nonlinearity is None else nonlinearity
             num_inputs = np.prod(incoming.output_shape[1:])
-
-            # Add in parameters from the supplied Gate instances
-            (self.W_in_to_ingate, self.W_hid_to_ingate, self.b_ingate,
-             self.nonlinearity_ingate) = ingate.add_params_to(
-                self, num_inputs, num_units, step=False)
-
-            (self.W_in_to_forgetgate, self.W_hid_to_forgetgate, self.b_forgetgate,
-             self.nonlinearity_forgetgate) = forgetgate.add_params_to(
-                self, num_inputs, num_units, step=False)
-
-            (self.W_in_to_cell, self.W_hid_to_cell, self.b_cell,
-             self.nonlinearity_cell) = cell.add_params_to(
-                self, num_inputs, num_units, step=False)
-
-            (self.W_in_to_outgate, self.W_hid_to_outgate, self.b_outgate,
-             self.nonlinearity_outgate) = outgate.add_params_to(
-                self, num_inputs, num_units, step=False)
-
-            # If peephole (cell to gate) connections were enabled, initialize
-            # peephole connections.  These are elementwise products with the cell
-            # state, so they are represented as vectors.
+            self.W_in_to_ingate, self.W_hid_to_ingate, self.b_ingate, self.nonlinearity_ingate = \
+                ingate.add_params_to(self, num_inputs, num_units, step=False)
+            self.W_in_to_forgetgate, self.W_hid_to_forgetgate, self.b_forgetgate, self.nonlinearity_forgetgate = \
+                forgetgate.add_params_to(self, num_inputs, num_units, step=False)
+            self.W_in_to_cell, self.W_hid_to_cell, self.b_cell, self.nonlinearity_cell = \
+                cell.add_params_to(self, num_inputs, num_units, step=False)
+            self.W_in_to_outgate, self.W_hid_to_outgate, self.b_outgate, self.nonlinearity_outgate = \
+                outgate.add_params_to(self, num_inputs, num_units, step=False)
             if self.peepholes:
-                self.W_cell_to_ingate = self.add_param(
-                    ingate.W_cell, (num_units,), name='W_cell_to_ingate')
-
-                self.W_cell_to_forgetgate = self.add_param(
-                    forgetgate.W_cell, (num_units,), name='W_cell_to_forgetgate')
-
-                self.W_cell_to_outgate = self.add_param(
-                    outgate.W_cell, (num_units,), name='W_cell_to_outgate')
-
-            # Stack input weight matrices into a (num_inputs, 4*num_units)
-            # matrix, which speeds up computation
-            self.W_in_stacked = self.add_param(T.concatenate(
-                [self.W_in_to_ingate, self.W_in_to_forgetgate,
-                 self.W_in_to_cell, self.W_in_to_outgate], axis=1),
-                (num_inputs, 4 * num_units), step_only=True, precompute_input=False)
-
-            # Same for hidden weight matrices
-            self.W_hid_stacked = self.add_param(T.concatenate(
-                [self.W_hid_to_ingate, self.W_hid_to_forgetgate,
-                 self.W_hid_to_cell, self.W_hid_to_outgate], axis=1),
-                (num_units, 4 * num_units), step_only=True)
-
-            # Stack biases into a (4*num_units) vector
-            self.b_stacked = self.add_param(T.concatenate(
-                [self.b_ingate, self.b_forgetgate,
-                 self.b_cell, self.b_outgate], axis=0),
-                (4 * num_units,), step_only=True, precompute_input=False)
+                self.W_cell_to_ingate = self.add_param(ingate.W_cell, (num_units,), name='W_cell_to_ingate')
+                self.W_cell_to_forgetgate = self.add_param(forgetgate.W_cell, (num_units,), name='W_cell_to_forgetgate')
+                self.W_cell_to_outgate = self.add_param(outgate.W_cell, (num_units,), name='W_cell_to_outgate')
+            self.W_in_stacked = self.add_param(T.concatenate([
+                self.W_in_to_ingate, self.W_in_to_forgetgate, self.W_in_to_cell, self.W_in_to_outgate
+            ], axis=1), (num_inputs, 4 * num_units), step_only=True, precompute_input=False)
+            self.W_hid_stacked = self.add_param(T.concatenate([
+                self.W_hid_to_ingate, self.W_hid_to_forgetgate, self.W_hid_to_cell, self.W_hid_to_outgate
+            ], axis=1), (num_units, 4 * num_units), step_only=True)
+            self.b_stacked = self.add_param(T.concatenate([
+                self.b_ingate, self.b_forgetgate, self.b_cell, self.b_outgate
+            ], axis=0), (4 * num_units,), step_only=True, precompute_input=False)
 
         def get_output_shape_for(self, input_shapes):
             return {
@@ -328,25 +288,15 @@ def lstm_dropout_weight():
 
         def precompute_for(self, inputs, **kwargs):
             input = inputs['input']
-
-            # Treat all dimensions after the second as flattened feature dimensions
             if input.ndim > 3:
                 input = T.flatten(input, 3)
-
-            # Because the input is given for all time steps, we can
-            # precompute_input the inputs dot weight matrices before scanning.
-            # W_in_stacked is (n_features, 4*num_units). input is then
-            # (n_time_steps, n_batch, 4*num_units).
             input = T.dot(input, self.W_in_stacked) + self.b_stacked
             inputs['input'] = input
             return inputs
 
         def get_output_for(self, inputs, precompute_input=False, **kwargs):
-            input, cell_previous, hid_previous = \
-                inputs['input'], inputs['cell'], inputs['output']
+            input, cell_previous, hid_previous = inputs['input'], inputs['cell'], inputs['output']
 
-            # At each call to scan, input_n will be (n_time_steps, 4*num_units).
-            # We define a slicing function that extract the input to each LSTM gate
             def slice_w(x, n):
                 return x[:, n * self.num_units:(n + 1) * self.num_units]
 
@@ -354,39 +304,23 @@ def lstm_dropout_weight():
                 if input.ndim > 2:
                     input = T.flatten(input, 2)
                 input = T.dot(input, self.W_in_stacked) + self.b_stacked
-
-            # Calculate gates pre-activations and slice
             gates = input + T.dot(hid_previous, self.W_hid_stacked)
-
-            # Clip gradients
             if self.grad_clipping:
-                gates = theano.gradient.grad_clip(
-                    gates, -self.grad_clipping, self.grad_clipping)
-
-            # Extract the pre-activation gate values
+                gates = theano.gradient.grad_clip(gates, -self.grad_clipping, self.grad_clipping)
             ingate = slice_w(gates, 0)
             forgetgate = slice_w(gates, 1)
             cell_input = slice_w(gates, 2)
             outgate = slice_w(gates, 3)
-
             if self.peepholes:
-                # Compute peephole connections
                 ingate += cell_previous * self.W_cell_to_ingate
                 forgetgate += cell_previous * self.W_cell_to_forgetgate
-
-            # Apply nonlinearities
             ingate = self.nonlinearity_ingate(ingate)
             forgetgate = self.nonlinearity_forgetgate(forgetgate)
             cell_input = self.nonlinearity_cell(cell_input)
-
-            # Compute new cell value
             cell = forgetgate * cell_previous + ingate * cell_input
-
             if self.peepholes:
                 outgate += cell * self.W_cell_to_outgate
             outgate = self.nonlinearity_outgate(outgate)
-
-            # Compute new hidden unit activation
             hid = outgate * self.nonlinearity(cell)
             return {'cell': cell, 'output': hid}
 
