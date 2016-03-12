@@ -3,6 +3,7 @@ import argparse
 import sys
 sys.path.insert(0, '../lasagne')
 
+import lasagne
 import theano
 import theano.tensor as T
 from lasagne import init
@@ -244,7 +245,7 @@ def rnn_dropout_value():
 
 
 def lstm_dropout_weight():
-    class LSTMCell(CellLayer):
+    class LSTMDropoutWeightCell(CellLayer):
         def __init__(self, incoming, num_units,
                      ingate=Gate(name='ingate'),
                      forgetgate=Gate(name='forgetgate'),
@@ -257,7 +258,7 @@ def lstm_dropout_weight():
                      peepholes=True,
                      grad_clipping=0,
                      **kwargs):
-            super(LSTMCell, self).__init__(
+            super().__init__(
                 {'input': incoming},
                 {'cell': cell_init, 'output': hid_init}, **kwargs)
             self.num_units = num_units
@@ -388,6 +389,19 @@ def lstm_dropout_weight():
             # Compute new hidden unit activation
             hid = outgate * self.nonlinearity(cell)
             return {'cell': cell, 'output': hid}
+
+    lasagne.random.get_rng().seed(1234)
+
+    n_batch, seq_len, n_features = 2, 3, 4
+    n_units = 5
+
+    l_inp = InputLayer((n_batch, seq_len, n_features))
+    cell_inp = InputLayer((n_batch, n_features))
+    cell = LSTMDropoutWeightCell(cell_inp, n_units)['output']
+    l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
+
+    x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
+    print(helper.get_output(l_rec, deterministic=False).eval({l_inp.input_var: x_in}))
 
 
 def main():
