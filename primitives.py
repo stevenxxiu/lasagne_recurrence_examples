@@ -20,7 +20,7 @@ class BernoulliDropout(Layer):
         self.p = p
         self._srng = RandomStreams(get_rng().randint(1, 2147462579))
 
-    def get_output_for(self, input_, deterministic=True, **kwargs):
+    def get_output_for(self, input_, deterministic=False, **kwargs):
         retain_prob = 1 - self.p
         shape = tuple(x if x != -1 else input_.shape[0] for x in self.shape)
         if deterministic:
