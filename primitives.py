@@ -22,7 +22,7 @@ class BernoulliDropout(Layer):
 
     def get_output_for(self, input_, deterministic=False, **kwargs):
         retain_prob = 1 - self.p
-        shape = tuple(x if x != -1 else input_.shape[0] for x in self.shape)
+        shape = (input_.shape[0],) + self.shape
         if deterministic:
             return T.ones(shape)
         return self._srng.binomial(shape, p=retain_prob, dtype=theano.config.floatX) / retain_prob
@@ -219,7 +219,7 @@ def rnn_dropout_output():
         def __init__(self, incoming, seq_incoming, n_units_, **kwargs):
             self.n_units = n_units_
             n_inputs = np.prod(incoming.output_shape[1:])
-            self.dropout = BernoulliDropout(seq_incoming, (-1, n_units_))
+            self.dropout = BernoulliDropout(seq_incoming, (n_units_,))
             # Passing the dropout layer to incomings directly instead of to inits will not add it to non_seqs,
             # therefore the dropout masks would change per iteration.
             super().__init__({'input': incoming}, {'output': init.Constant(0.), 'dropout': self.dropout}, **kwargs)
@@ -265,7 +265,7 @@ def lstm_dropout_mcls():
             self.grad_clipping = grad_clipping
             self.nonlinearity = identity if nonlinearity is None else nonlinearity
             num_inputs = np.prod(incoming.output_shape[1:])
-            self.dropout = BernoulliDropout(seq_incoming, (-1, num_units), p=dropout_p)
+            self.dropout = BernoulliDropout(seq_incoming, (num_units,), p=dropout_p)
             super().__init__({
                 'x': incoming, 'xi': incoming, 'xf': incoming, 'xc': incoming, 'xo': incoming,
             }, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs)
@@ -354,7 +354,7 @@ def lstm_dropout_gal():
             self.grad_clipping = grad_clipping
             self.nonlinearity = identity if nonlinearity is None else nonlinearity
             num_inputs = np.prod(incoming.output_shape[1:])
-            self.dropout = BernoulliDropout(seq_incoming, (4, -1, num_units), p=dropout_p)
+            self.dropout = BernoulliDropout(seq_incoming, (4, num_units), p=dropout_p)
             super().__init__({
                 'x': incoming, 'xi': incoming, 'xf': incoming, 'xc': incoming, 'xo': incoming,
             }, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs)
@@ -388,10 +388,10 @@ def lstm_dropout_gal():
             if not precompute_input:
                 raise NotImplementedError
             c_tm1, h_tm1, dropout_ = inputs['cell'], inputs['output'], inputs['dropout']
-            i_t = inputs['xi'] + T.dot(h_tm1 * dropout_[0], self.W_hi)
-            f_t = inputs['xf'] + T.dot(h_tm1 * dropout_[1], self.W_hf)
-            c_t = inputs['xc'] + T.dot(h_tm1 * dropout_[2], self.W_hc)
-            o_t = inputs['xo'] + T.dot(h_tm1 * dropout_[3], self.W_ho)
+            i_t = inputs['xi'] + T.dot(h_tm1 * dropout_[:, 0], self.W_hi)
+            f_t = inputs['xf'] + T.dot(h_tm1 * dropout_[:, 1], self.W_hf)
+            c_t = inputs['xc'] + T.dot(h_tm1 * dropout_[:, 2], self.W_hc)
+            o_t = inputs['xo'] + T.dot(h_tm1 * dropout_[:, 3], self.W_ho)
             if self.grad_clipping:
                 i_t = theano.gradient.grad_clip(i_t, -self.grad_clipping, self.grad_clipping)
                 f_t = theano.gradient.grad_clip(f_t, -self.grad_clipping, self.grad_clipping)
