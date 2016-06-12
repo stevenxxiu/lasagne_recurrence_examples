@@ -266,9 +266,9 @@ def lstm_dropout_mcls():
             self.nonlinearity = identity if nonlinearity is None else nonlinearity
             num_inputs = np.prod(incoming.output_shape[1:])
             self.dropout = BernoulliDropout(seq_incoming, (num_units,), p=dropout_p)
-            super().__init__({
-                'x': incoming, 'xi': incoming, 'xf': incoming, 'xc': incoming, 'xo': incoming,
-            }, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs)
+            super().__init__(
+                {'x': incoming}, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs
+            )
             self.W_xi, self.W_hi, self.b_i, self.nl_i = g_i.add_params_to(self, num_inputs, num_units)
             self.W_xf, self.W_hf, self.b_f, self.nl_f = g_f.add_params_to(self, num_inputs, num_units)
             self.W_xc, self.W_hc, self.b_c, self.nl_c = g_c.add_params_to(self, num_inputs, num_units)
@@ -355,9 +355,9 @@ def lstm_dropout_gal():
             self.nonlinearity = identity if nonlinearity is None else nonlinearity
             num_inputs = np.prod(incoming.output_shape[1:])
             self.dropout = BernoulliDropout(seq_incoming, (4, num_units), p=dropout_p)
-            super().__init__({
-                'x': incoming, 'xi': incoming, 'xf': incoming, 'xc': incoming, 'xo': incoming,
-            }, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs)
+            super().__init__(
+                {'x': incoming}, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs
+            )
             self.W_xi, self.W_hi, self.b_i, self.nl_i = g_i.add_params_to(self, num_inputs, num_units)
             self.W_xf, self.W_hf, self.b_f, self.nl_f = g_f.add_params_to(self, num_inputs, num_units)
             self.W_xc, self.W_hc, self.b_c, self.nl_c = g_c.add_params_to(self, num_inputs, num_units)
