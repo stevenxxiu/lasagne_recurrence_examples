@@ -14,18 +14,16 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 
 class BernoulliDropout(Layer):
-    def __init__(self, incoming, shape_, p=0.5, **kwargs):
+    def __init__(self, incoming, p=0.5, **kwargs):
         super().__init__(incoming, **kwargs)
-        self.shape = shape_
         self.p = p
         self._srng = RandomStreams(get_rng().randint(1, 2147462579))
 
     def get_output_for(self, input_, deterministic=False, **kwargs):
         retain_prob = 1 - self.p
-        shape = (input_.shape[0],) + self.shape
         if deterministic:
-            return T.ones(shape)
-        return self._srng.binomial(shape, p=retain_prob, dtype=theano.config.floatX) / retain_prob
+            return T.ones(self.input_shape)
+        return self._srng.binomial(self.input_shape, p=retain_prob, dtype=theano.config.floatX) / retain_prob
 
 
 def seq_1_to_1():
@@ -216,10 +214,10 @@ def stack_lstm_gru_step_input():
 
 def rnn_dropout_output():
     class RNNDropoutOutputCell(CellLayer):
-        def __init__(self, incoming, seq_incoming, n_units_, **kwargs):
+        def __init__(self, incoming, n_units_, **kwargs):
             self.n_units = n_units_
             n_inputs = np.prod(incoming.output_shape[1:])
-            self.dropout = BernoulliDropout(seq_incoming, (n_units_,))
+            self.dropout = BernoulliDropout(InputLayer((incoming.output_shape[0], n_units_)))
             # Passing the dropout layer to incomings directly instead of to inits will not add it to non_seqs,
             # therefore the dropout masks would change per iteration.
             super().__init__({'input': incoming}, {'output': init.Constant(0.), 'dropout': self.dropout}, **kwargs)
@@ -240,7 +238,7 @@ def rnn_dropout_output():
 
     l_inp = InputLayer((n_batch, seq_len, n_features))
     cell_inp = InputLayer((n_batch, n_features))
-    cell = RNNDropoutOutputCell(cell_inp, l_inp, n_units)['output']
+    cell = RNNDropoutOutputCell(cell_inp, n_units)['output']
     l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
 
     x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
@@ -255,7 +253,7 @@ def lstm_dropout_mcls():
     '''
     class LSTMDropoutMCLSCell(CellLayer):
         def __init__(
-            self, incoming, seq_incoming, num_units, dropout_p, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
+            self, incoming, num_units, dropout_p, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
             g_c=Gate(W_cell=None, nonlinearity=tanh, name='cell'), g_o=Gate(name='outgate'),
             nonlinearity=tanh, cell_init=Constant(0.), hid_init=Constant(0.), peepholes=True,
             grad_clipping=0, **kwargs
@@ -265,7 +263,7 @@ def lstm_dropout_mcls():
             self.grad_clipping = grad_clipping
             self.nonlinearity = identity if nonlinearity is None else nonlinearity
             num_inputs = np.prod(incoming.output_shape[1:])
-            self.dropout = BernoulliDropout(seq_incoming, (num_units,), p=dropout_p)
+            self.dropout = BernoulliDropout(InputLayer((incoming.output_shape[0], num_units)), p=dropout_p)
             super().__init__(
                 {'x': incoming}, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs
             )
@@ -329,7 +327,7 @@ def lstm_dropout_mcls():
 
     l_inp = InputLayer((n_batch, seq_len, n_features))
     cell_inp = InputLayer((n_batch, n_features))
-    cell = LSTMDropoutMCLSCell(cell_inp, l_inp, n_units, dropout_p=0.5)['output']
+    cell = LSTMDropoutMCLSCell(cell_inp, n_units, dropout_p=0.5)['output']
     l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
 
     x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
@@ -344,7 +342,7 @@ def lstm_dropout_gal():
     '''
     class LSTMDropoutGalCell(CellLayer):
         def __init__(
-            self, incoming, seq_incoming, num_units, dropout_p, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
+            self, incoming, num_units, dropout_p, g_i=Gate(name='ingate'), g_f=Gate(name='forgetgate'),
             g_c=Gate(W_cell=None, nonlinearity=tanh, name='cell'), g_o=Gate(name='outgate'),
             nonlinearity=tanh, cell_init=init.Constant(0.), hid_init=init.Constant(0.), peepholes=True,
             grad_clipping=0, **kwargs
@@ -354,7 +352,7 @@ def lstm_dropout_gal():
             self.grad_clipping = grad_clipping
             self.nonlinearity = identity if nonlinearity is None else nonlinearity
             num_inputs = np.prod(incoming.output_shape[1:])
-            self.dropout = BernoulliDropout(seq_incoming, (4, num_units), p=dropout_p)
+            self.dropout = BernoulliDropout(InputLayer((incoming.output_shape[0], 4, num_units)), p=dropout_p)
             super().__init__(
                 {'x': incoming}, {'cell': cell_init, 'output': hid_init, 'dropout': self.dropout}, **kwargs
             )
@@ -417,7 +415,7 @@ def lstm_dropout_gal():
 
     l_inp = InputLayer((n_batch, seq_len, n_features))
     cell_inp = InputLayer((n_batch, n_features))
-    cell = LSTMDropoutGalCell(cell_inp, l_inp, n_units, dropout_p=0.5)['output']
+    cell = LSTMDropoutGalCell(cell_inp, n_units, dropout_p=0.5)['output']
     l_rec = RecurrentContainerLayer({cell_inp: l_inp}, cell)
 
     x_in = np.random.random((n_batch, seq_len, n_features)).astype('float32')
